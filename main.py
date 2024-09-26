@@ -38,7 +38,7 @@ def generate_image_prompt(slide_title, slide_content, presentation_summary):
     )
     return response.choices[0].message.content
 
-def create_slide(presentation, slide_title, slide_content, image_path, image_on_right):
+def create_slide(presentation, slide_title, slide_content, image_path, image_on_right, logo_path):
     slide_layout = presentation.slide_layouts[1]
     slide = presentation.slides.add_slide(slide_layout)
 
@@ -46,7 +46,14 @@ def create_slide(presentation, slide_title, slide_content, image_path, image_on_
     content = slide.placeholders[1]
 
     title.text = slide_title
-    content.text = slide_content
+    
+    # Add multiple bullet points
+    text_frame = content.text_frame
+    text_frame.clear()
+    for point in slide_content:
+        p = text_frame.add_paragraph()
+        p.text = point
+        p.level = 0
 
     # Set title font properties
     title.text_frame.paragraphs[0].runs[0].font.name = 'Calibri'
@@ -68,12 +75,14 @@ def create_slide(presentation, slide_title, slide_content, image_path, image_on_
         title.width = presentation.slide_width - image_width - margin * 2
         title.left = margin
         content.left = Inches(0.5)
+        logo_left = Inches(0.5)
     else:
         left_position = 0
         content.width = presentation.slide_width - image_width - margin
         title.width = presentation.slide_width - image_width - margin * 2
         title.left = image_width + margin
         content.left = Inches(5)
+        logo_left = presentation.slide_width - Inches(2.5)
 
     title.top = Inches(1)
     content.top = Inches(2.2)
@@ -81,22 +90,66 @@ def create_slide(presentation, slide_title, slide_content, image_path, image_on_
     # Add image
     slide.shapes.add_picture(image_path, left_position, 0, width=image_width, height=presentation.slide_height)
 
+    # Add logo
+    logo_width = Inches(2)
+    logo_height = Inches(0.75)
+    logo_top = presentation.slide_height - logo_height - Inches(0.5)
+    slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width, height=logo_height)
+
+def create_cover_slide(presentation, title, subtitle, logo_path):
+    slide_layout = presentation.slide_layouts[0]  # Using the title slide layout
+    slide = presentation.slides.add_slide(slide_layout)
+
+    title_placeholder = slide.shapes.title
+    subtitle_placeholder = slide.placeholders[1]
+
+    title_placeholder.text = title
+    subtitle_placeholder.text = subtitle
+
+    # Set font properties
+    title_placeholder.text_frame.paragraphs[0].runs[0].font.name = 'Calibri'
+    title_placeholder.text_frame.paragraphs[0].runs[0].font.size = Pt(44)
+    title_placeholder.text_frame.paragraphs[0].runs[0].font.bold = True
+
+    subtitle_placeholder.text_frame.paragraphs[0].runs[0].font.name = 'Calibri'
+    subtitle_placeholder.text_frame.paragraphs[0].runs[0].font.size = Pt(32)
+
+    # Add logo
+    logo_width = Inches(3)
+    logo_height = Inches(1.125)
+    logo_left = (presentation.slide_width - logo_width) / 2
+    logo_top = presentation.slide_height - logo_height - Inches(1)
+    slide.shapes.add_picture(logo_path, logo_left, logo_top, width=logo_width, height=logo_height)
+
 def main():
     presentation = Presentation()
     presentation.slide_width = Inches(10)
     presentation.slide_height = Inches(7.5)
 
-    slides_content = []
-    image_on_right = True
+    logo_path = 'logo.png'  # Make sure this file exists in the same directory as the script
 
     print("Welcome to the Interactive Presentation Generator!")
     
+    # Create cover slide
+    cover_title = input("Enter the presentation title for the cover slide: ")
+    cover_subtitle = input("Enter the subtitle for the cover slide: ")
+    create_cover_slide(presentation, cover_title, cover_subtitle, logo_path)
+
+    slides_content = []
+    image_on_right = True
+
     while True:
         choice = input("Press 1 to add a new slide or 2 to finish and create the presentation: ")
         
         if choice == '1':
             slide_title = input("Enter slide title: ")
-            slide_content = input("Enter slide content: ")
+            slide_content = []
+            while True:
+                content = input("Enter slide content (or press Enter to finish this slide): ")
+                if content:
+                    slide_content.append(content)
+                else:
+                    break
             slides_content.append((slide_title, slide_content))
         elif choice == '2':
             break
@@ -118,11 +171,11 @@ def main():
 
     for i, (slide_title, slide_content) in enumerate(slides_content):
         print(f"Generating image for slide {i+1}...")
-        image_prompt = generate_image_prompt(slide_title, slide_content, presentation_summary)
+        image_prompt = generate_image_prompt(slide_title, "\n".join(slide_content), presentation_summary)
         image_url = generate_image(image_prompt)
         image_data = download_image(image_url)
         
-        create_slide(presentation, slide_title, slide_content, image_data, image_on_right)
+        create_slide(presentation, slide_title, slide_content, image_data, image_on_right, logo_path)
         image_on_right = not image_on_right
 
     file_name = input("Enter the name for your presentation file (without extension): ")
